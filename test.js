@@ -3,6 +3,7 @@ var nfc  = require('./index').nfc
   , version = nfc.version()
   , devices = nfc.scan()
   ;
+var READDATA = true;
 
 console.log('version: ' + util.inspect(version, { depth: null }));
 console.log('devices: ' + util.inspect(devices, { depth: null }));
@@ -25,7 +26,7 @@ function read(deviceID) {
     console.log('stopped');
   });
 
-  console.log(nfcdev.start(deviceID));
+  console.log(nfcdev.start(deviceID, READDATA));
 }
 
 for (var deviceID in devices) read(deviceID);

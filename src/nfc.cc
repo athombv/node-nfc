@@ -25,6 +25,8 @@ static uint8_t keys[] = {
 };
 static size_t num_keys = sizeof(keys) / 6;
 
+#define NFC_POLL_CYCLES 10
+
 
 namespace {
 
@@ -53,6 +55,7 @@ namespace {
         nfc_context *context;
         bool run;
         bool claimed;
+        bool readData;
     };
 
     class NFCCard {
@@ -158,7 +161,11 @@ namespace {
         }
 
         void Execute(const AsyncProgressWorker::ExecutionProgress& progress) {
-            while(baton->run && nfc_initiator_select_passive_target(baton->pnd, nmMifare, NULL, 0, &baton->nt) > 0) {
+            while(baton->run) {
+                if(nfc_initiator_poll_target(baton->pnd, &nmMifare, 1, 0x1, 0x1, &baton->nt) <= 0) {
+                    usleep(NFC_POLL_CYCLES*150000);
+                    continue;
+                }
                 baton->claimed = true;
                 tag = new NFCCard();
                 if(baton->run) ReadTag(tag);
@@ -200,6 +207,8 @@ namespace {
             }
             tag->SetUID(uid);
             tag->SetType(baton->nt.nti.nai.abtAtqa[1]);
+
+            if(!baton->readData) return;
 
             switch (baton->nt.nti.nai.abtAtqa[1]) {
                 case 0x04:
@@ -354,7 +363,7 @@ namespace {
             Local<Value> argv[2];
             argv[0] = Nan::New("read").ToLocalChecked();
             argv[1] = object;
-            
+
             Local<Object> self = GetFromPersistent("self").As<Object>();
             Nan::MakeCallback(self, "emit", 2, argv);
         }
@@ -388,6 +397,7 @@ namespace {
         if (context == NULL) return Nan::ThrowError("unable to init libfnc (malloc).");
 
         nfc_device *pnd;
+        bool readData = true;
         if (info.Length() > 0) {
             if (!info[0]->IsString()) {
                 nfc_exit(context);
@@ -396,6 +406,10 @@ namespace {
             nfc_connstring connstring;
             String::Utf8Value device(info[0]->ToString());
             snprintf(connstring, sizeof connstring, "%s", *device);
+
+            if(info[1]->IsBoolean()) {
+                readData = info[1]->IsTrue();
+            }
 
             pnd = nfc_open(context, connstring);
         } else {
@@ -417,6 +431,7 @@ namespace {
         NFC *baton = ObjectWrap::Unwrap<NFC>(info.This());
         baton->context = context;
         baton->pnd = pnd;
+        baton->readData = readData;
 
         NFCReadWorker* readWorker = new NFCReadWorker(baton, info.This());
         Nan::AsyncQueueWorker(readWorker);
