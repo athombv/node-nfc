@@ -27,6 +27,12 @@ static size_t num_keys = sizeof(keys) / 6;
 
 #define NFC_POLL_CYCLES 10
 
+bool nfc_abort = false;
+
+void nfc_exit_handler()
+{
+    nfc_abort = true;
+}
 
 namespace {
 
@@ -161,7 +167,7 @@ namespace {
         }
 
         void Execute(const AsyncProgressWorker::ExecutionProgress& progress) {
-            while(baton->run) {
+            while(baton->run && !nfc_abort) {
                 if(nfc_initiator_poll_target(baton->pnd, &nmMifare, 1, 0x1, 0x1, &baton->nt) <= 0) {
                     usleep(NFC_POLL_CYCLES*150000);
                     continue;
@@ -504,6 +510,8 @@ namespace {
         Nan::Export(target, "version", Version);
         Nan::Export(target, "scan", Scan);
         Nan::Set(target, Nan::New("NFC").ToLocalChecked(), tpl->GetFunction());
+
+        std::atexit(nfc_exit_handler);
     };
 }
 
