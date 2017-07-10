@@ -29,5 +29,6 @@
     }
   ],
   "license": "MIT",
-  "gypfile": true
+  "gypfile": true,
+  "os" : [ "linux" ]
 }
